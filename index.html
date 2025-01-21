@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Chat!</title>
+    <link href="/style.css" rel="stylesheet" type="text/css" />
+    <link rel="icon" href="/iconWOW">
+  </head>
+  <body>
+    <div id="loadingScreen">
+      <div class="loadingAnimation" style="position:absolute;"></div>
+      <div id="RoundedCornersBackground"></div>
+      <div id="grayOut"></div>
+    </div>
+    <div id="screen1" class="💪">
+      <div class="centerText bigText">Welcome to Our Chat Platform!</div>
+      <div class="centerText smallText">Please insert room's ID and your username</div>
+      <form id="join" class="💪">
+        <input type="text" name="ID" class="input" placeholder="Insert room's ID" id="ID">
+        <input type="text" name="username" class="input" placeholder="Insert your username" id="username">
+        <input class="button" type="submit" value="Join" onclick='document.getElementById("loadingScreen").style.display="flex";'>
+      </form>
+      <button class="button" onclick="document.getElementById('screen1').style.display='none';document.getElementById('screen2').style.display='flex'">Create New Room</button>
+    </div>
+
+    <div id="screen2" style="display:none;" class="💪">
+      <form class="💪" id="newRoom">
+        <input type="text" name="roomName" class="input" placeholder="Insert room's name">
+        <input type="text" name="username" class="input" placeholder="Insert username">
+        <input type="submit" class="button" value="Submit" onclick="document.getElementById('loadingScreen').style.display='flex';">
+      </form>
+      <button class="button" onclick="document.getElementById('screen1').style.display='flex';document.getElementById('screen2').style.display='none'">Go Back</button>
+    </div>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+    <script>
+    function ajax(url,object){
+      $.ajax({
+        type: 'POST',
+        url: url,
+        data: object,
+        success: function(data, status, xhttp){
+          switch(data.slice(0,3)){
+            case "msg":
+              alert(data.slice(4))
+              break;
+            case "htm":
+              $("body").html(data.slice(4))
+              break;
+          }
+          $('#loadingScreen').hide()
+        }
+      })
+    }
+
+    $(function() {
+      $('#newRoom').submit(function(ev) {
+        ev.preventDefault();
+        if($('#newRoom :input[name="roomName"]').val() && $('#newRoom :input[name="username"]').val()){
+          $.getJSON("https://api.ipify.org/?format=json", function(e) {
+            ajax('/NewRoom',{roomName:$('#newRoom :input[name="roomName"]').val(), IP:e.ip,username:$('#newRoom :input[name="username"]').val()})
+          })
+        }
+        else{
+          alert("ID and username can\'t be emtpy")
+          $('#loadingScreen').hide()
+        }
+        return false;
+      });
+      $('#join').submit(function(ev) {
+        ev.preventDefault();
+        if($('#ID').val() && $('#username').val()){
+          $.getJSON("https://api.ipify.org/?format=json", function(e) {
+            ajax('/',{ID:$('#ID').val(),IP:e.ip,username:$('#username').val()})
+          })
+        }
+        else{
+          alert("ID and username can\'t be emtpy")
+          $('#loadingScreen').hide()
+        }
+        return false;
+      });
+    });
+    
+    </script>
+  </body>
+</html>

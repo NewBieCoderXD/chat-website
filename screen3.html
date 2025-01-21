@@ -1,0 +1,139 @@
+<body>
+  <div id="screen3">
+    <div class="top">
+      <div
+        style="
+          width: 98%;
+          display: flex;
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
+        "
+      >
+        <span
+          id="roomName"
+          style="word-wrap: break-word"
+          class="verySmallText"
+        ></span>
+        <div>
+          <span
+            id="id"
+            style="margin: 0; position: relative; right: 3px"
+            class="verySmallText"
+          ></span>
+          <button id="Clipboard" style="padding: 1px" class="verySmallText">
+            Copy to Clipboard
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="chatArea" class="chatArea"></div>
+    <div class="bottom">
+      <button
+        style="
+          background-image: url('sendButton.png');
+          background-position: center;
+          background-size: auto 100%;
+          background-repeat: no-repeat;
+          height: 100%;
+          width: 10vh;
+        "
+        onclick="sendMessage()"
+      ></button>
+      <input type="text" id="msg" style="flex: auto" />
+    </div>
+  </div>
+  <script>
+    IsMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      );
+    IsMobile && navigator.serviceWorker.register("/sw.js");
+
+    let websocket;
+    function notify(json) {
+      if (Notification.permission == "granted" && json.position == "left") {
+        let Nheader =
+          document.getElementById("roomName").innerHTML +
+          "(" +
+          json.sender +
+          ")";
+        let Noptions = {
+          body: json.msg,
+          icon: "./iconWOW",
+        };
+        if (IsMobile) {
+          navigator.serviceWorker.ready.then(function (registration) {
+            registration.showNotification(Nheader, Noptions);
+          });
+        } else {
+          let n = new Notification(Nheader, Noptions);
+        }
+      } else {
+        Notification.requestPermission();
+      }
+    }
+
+    if ("Notification" in window) {
+      Notification.requestPermission();
+    }
+    document.onkeyup = () => {
+      event.key == "Enter" && sendMessage();
+    };
+    function sendMessage() {
+      document.getElementById("msg").value &&
+      websocket.send(document.getElementById("msg").value);
+      document.getElementById("msg").value = "";
+    }
+    function addMessage(msg) {
+      let msgChild = document.createElement("span");
+      json = JSON.parse(msg);
+      let divParent = document.createElement("div");
+      divParent.style.width = "100%";
+      if (json.sender) {
+        let senderChild = msgChild.cloneNode(true);
+        senderChild.innerHTML = json.sender;
+        senderChild.style.backgroundColor = "green";
+        senderChild.style.marginLeft = "3px";
+        divParent.append(senderChild);
+        divParent.append(document.createElement("Br"));
+      }
+      msgChild.innerHTML = json.msg;
+      msgChild.classList.add("chatText", "smallText");
+      let chatArea = document.getElementById("chatArea");
+      if (json.msg != "Reconnecting") {
+        msgChild.classList.add(json.position);
+        divParent.append(msgChild);
+      } else {
+        divParent.style.display = "flex";
+        divParent.style.justifyContent = " center";
+        divParent.style.alignItems = "center";
+        let loading = document.createElement("div");
+        loading.style =
+          "width:2.5em;height:2.5em;border: 2px solid transparent;border-top: 2px solid white;border-radius:50%;z-index:10;animation: spin 3s ease-in-out infinite;margin-top:3px;margin-bottom:0px;";
+        divParent.append(msgChild);
+        divParent.append(loading);
+      }
+      chatArea.appendChild(divParent);
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function StartWebSocket(AddedLeftMessage) {
+      websocket = new WebSocket(
+        "ws://localhost:8080/"
+      );
+      websocket.onclose = function () {
+        if (!AddedLeftMessage) {
+          addMessage(`{"msg":"${user} has left","position":"middle"}`);
+          addMessage(`{"msg":"Reconnecting","position":"middle"}`);
+        }
+        setTimeout(StartWebSocket(true), 500);
+      };
+      websocket.onmessage = function (msg) {
+        addMessage(msg.data);
+        notify(JSON.parse(msg.data));
+      };
+    }
+  </script>
+  <script src="./sw.js"></script>
+</body>
