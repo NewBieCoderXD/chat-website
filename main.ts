@@ -4,7 +4,7 @@ import * as cheerio from "cheerio";
 import { createClient, RedisClientType } from "redis";
 import moment from "moment";
 import http from "http";
-import WebSocket, {WebSocketServer} from "ws";
+import WebSocket, { WebSocketServer } from "ws";
 import expressWs from "express-ws";
 
 const db: RedisClientType = createClient();
@@ -13,11 +13,6 @@ const wss = expressWs(express());
 const app = wss.app;
 
 db.on("error", (err) => console.error("Redis Client Error", err));
-
-interface RoomData {
-  roomName: string;
-  hostIP: string;
-}
 
 interface WebSocketWithUsername extends WebSocket {
   username?: string;
@@ -56,20 +51,20 @@ function setInputAndAddAlert(
   });
 }
 
-function saveJSON(jsonData: Record<string, any>): void {
-  fs.writeFile("dateAndID.json", JSON.stringify(jsonData), "utf8", (err) => {
-    if (err) {
-      console.error("Error saving JSON:", err);
-    } else {
-      console.log("JSON file has been updated.");
-    }
-  });
-}
+// function saveJSON(jsonData: Record<string, any>): void {
+//   fs.writeFile("dateAndID.json", JSON.stringify(jsonData), "utf8", (err) => {
+//     if (err) {
+//       console.error("Error saving JSON:", err);
+//     } else {
+//       console.log("JSON file has been updated.");
+//     }
+//   });
+// }
 
-function checkForEmptyList(): boolean {
-  const jsonData = require("./dateAndID.json");
-  return Object.keys(jsonData).length === 0;
-}
+// function checkForEmptyList(): boolean {
+//   const jsonData = require("./dateAndID.json");
+//   return Object.keys(jsonData).length === 0;
+// }
 
 function sendChatHTML(
   name: string,
@@ -103,13 +98,13 @@ function sendChatHTML(
   });
 }
 
-async function deleteAll(): Promise<void> {
-  const keys = await db.keys("*");
-  for (const key of keys) {
-    await db.del(key);
-    console.log("Deleted:", key);
-  }
-}
+// async function deleteAll(): Promise<void> {
+//   const keys = await db.keys("*");
+//   for (const key of keys) {
+//     await db.del(key);
+//     console.log("Deleted:", key);
+//   }
+// }
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -176,7 +171,7 @@ app.post("/", function (request, response) {
 });
 
 app.post("/NewRoom", async (req: Request, res: Response) => {
-  const { roomName, username, IP } = req.body;
+  const { roomName, username } = req.body;
   if (!roomName || !username) {
     res.send("msg Please check your information");
     return;
@@ -188,15 +183,9 @@ app.post("/NewRoom", async (req: Request, res: Response) => {
     id = Math.random().toString(36).substring(2, 12);
   } while (keys.includes(id));
 
-  const existingKey = keys.find(async (key) => (await db.get(key)) === IP);
-
-  if (existingKey) {
-    await db.del(existingKey);
-    roomKeyToWS.delete(Number(existingKey));
-    console.log("Deleted room:", existingKey);
-  }
-
-  await db.set(id, JSON.stringify({ roomName, hostIP: IP }));
+  await db.set(id, roomName, {
+    EX: 10 * 60,
+  });
   sendChatHTML(username, roomName, id, res);
 
   console.log("New room created at", moment().format(Format));
@@ -223,34 +212,43 @@ app.ws("/", function (ws: WebSocketWithUsername, req) {
 
   ws.on("message", (message: string) => {
     if (!ws.username) {
-      const data = JSON.parse(message);
+      const data: { key: number; name: string } = JSON.parse(message);
+      if (data.key == undefined) {
+        ws.close();
+        return;
+      }
       console.log(message);
       ws.username = data.name;
       const room = roomKeyToWS.get(data.key) || [];
       room.push(ws);
       roomKeyToWS.set(data.key, room);
       console.log("WebSocket added to room", data.key);
-      broadcast(ws,message,true)
-    }
-    else{
-      broadcast(ws,message,false)
+      broadcast(ws, data.name + " has joined", true);
+    } else {
+      broadcast(ws, message, false);
     }
   });
 });
 
-function broadcast(ws: WebSocketWithUsername,data: string,IsMiddle: boolean){
-  data=data.toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-  
+function broadcast(ws: WebSocketWithUsername, data: string, IsMiddle: boolean) {
+  data = data
+    .toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
   wss.getWss().clients.forEach(function each(client: WebSocketWithUsername) {
-      if(!IsMiddle){
-        if(client !== ws){
-          client.send(JSON.stringify({position:"left",sender:ws.username,msg:data}))
-          return;
-        }
-        client.send(JSON.stringify({position:"right",msg:data}))
+    if (!IsMiddle) {
+      if (client !== ws) {
+        client.send(
+          JSON.stringify({ position: "left", sender: ws.username, msg: data })
+        );
         return;
       }
-      client.send(JSON.stringify({position:"middle",msg:data}))
+      client.send(JSON.stringify({ position: "right", msg: data }));
+      return;
+    }
+    client.send(JSON.stringify({ position: "middle", msg: data }));
   });
 }
 
@@ -261,23 +259,23 @@ async function start() {
     console.log("Server started on port", port);
   });
 
-  setInterval(async () => {
-    console.log("Performing cleanup...");
-    if (!checkForEmptyList()) {
-      const dateAndID: {
-        [key: string]: string;
-      } = require("./dateAndID.json");
-      const now = moment();
-      for (const [key, value] of Object.entries(dateAndID)) {
-        if (moment(key, Format).isBefore(now)) {
-          await db.del(value);
-          delete dateAndID[key];
-          console.log("Deleted expired room:", key);
-        }
-      }
-      saveJSON(dateAndID);
-    }
-  }, 600000);
+  // setInterval(async () => {
+  //   console.log("Performing cleanup...");
+  //   if (!checkForEmptyList()) {
+  //     const dateAndID: {
+  //       [key: string]: string;
+  //     } = require("./dateAndID.json");
+  //     const now = moment();
+  //     for (const [key, value] of Object.entries(dateAndID)) {
+  //       if (moment(key, Format).isBefore(now)) {
+  //         await db.del(value);
+  //         delete dateAndID[key];
+  //         console.log("Deleted expired room:", key);
+  //       }
+  //     }
+  //     saveJSON(dateAndID);
+  //   }
+  // }, 600000);
 }
 
 start();
