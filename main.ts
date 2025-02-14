@@ -138,8 +138,8 @@ app.post("/", function (request, response) {
     );
   } else {
     db.get(request.body.ID).then((raw) => {
-      let value: any = JSON.parse(raw!);
-      if (!value) {
+      let roomName: any = raw;
+      if (!roomName) {
         setInputAndAddAlert(
           request.body.ID,
           request.body.username,
@@ -161,7 +161,7 @@ app.post("/", function (request, response) {
         }
         sendChatHTML(
           request.body.username,
-          value.roomName,
+          roomName,
           request.body.ID,
           response
         );
